@@ -150,6 +150,24 @@ func KBSearch(query string, limit int) []KBEntry {
 	return out
 }
 
+// KBRecall: 面向当前 prompt 的主动召回(Anuma 式 pre-load)。
+// 返回可直接拼进 user 消息的注入块;无命中返回 ""。
+func KBRecall(prompt string, limit int) string {
+	hits := KBSearch(prompt, limit)
+	if len(hits) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("[系统注入-相关记忆(非用户输入,静默使用,勿复述)]\n")
+	b.WriteString("<relevant_memories>\n")
+	for _, e := range hits {
+		b.WriteString("- [" + e.Kind + "] " + e.Text +
+			" (" + e.Agent + ", " + e.TS + ")\n")
+	}
+	b.WriteString("</relevant_memories>")
+	return b.String()
+}
+
 // KBDigest: 最近 N 条的紧凑渲染,注入 system 简报。
 func KBDigest(limit int) string {
 	all := KBAll()

@@ -28,6 +28,12 @@ func speakInproc(run *core.Run, name, prompt, extraSys, prefill string) string {
 	if config.ResumeEnabled() {
 		msgs = append(msgs, ctx.LoadSession(name, 8000)...)
 	}
+	rawPrompt := prompt
+	if core.AgentHasTool(a, "kb_search") {
+		if blk := ctx.KBRecall(prompt, 6); blk != "" {
+			prompt = blk + "\n\n" + prompt
+		}
+	}
 	msgs = append(msgs, config.Message{Role: "user", Content: prompt})
 	if prefill != "" {
 		msgs = append(msgs, config.Message{Role: "assistant", Content: prefill})
@@ -70,7 +76,7 @@ func speakInproc(run *core.Run, name, prompt, extraSys, prefill string) string {
 	run.SM.Set(name, "done", "")
 	// inproc 同样记档案, 保证 ctx_search/会话复用可用
 	ctx.Append(name,
-		config.Message{Role: "user", Content: prompt},
+		config.Message{Role: "user", Content: rawPrompt},
 		config.Message{Role: "assistant", Content: out})
 	fmt.Println(out)
 	wrote := run.ExtractArtifacts(out)

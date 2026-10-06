@@ -89,6 +89,7 @@ type ContextConf struct {
 	KeepRecent int   `json:"keep_recent"` // 尾部保留原文消息数
 	ChunkEst   int64 `json:"chunk_est"`   // 摘要单块输入上限
 	Resume     bool  `json:"resume"`      // 跨 run 会话复用(摘要+pins+档案尾巴)
+	MemoryExtract bool `json:"memory_extract"` // 每轮后异步抽取知识入库(sidecar)
 }
 
 func (g *Global) StreamEnabled() bool {

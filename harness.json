@@ -25,7 +25,8 @@
   "context": {
     "max_est": 60000,
     "keep_recent": 10,
-    "chunk_est": 24000
+    "chunk_est": 24000,
+    "memory_extract": true
   },
   "index_paths": [
     "D:\\Mint-Simulator-Dev",

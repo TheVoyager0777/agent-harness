@@ -61,3 +61,13 @@ func TestChildIPCRoundTrip(t *testing.T) {
 		t.Fatal("无响应应超时")
 	}
 }
+
+func TestExtractKB(t *testing.T) {
+	got := extractKB("结论<knowledge>f16=2541B</knowledge>尾<knowledge> Worker 探针缺口 </knowledge>")
+	if len(got) != 2 || got[0] != "f16=2541B" || got[1] != "Worker 探针缺口" {
+		t.Fatalf("%v", got)
+	}
+	if extractKB("no tags") != nil {
+		t.Fatal("no tags should yield nil")
+	}
+}

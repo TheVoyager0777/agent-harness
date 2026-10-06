@@ -3,8 +3,11 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/xjcdw0777/agent-harness/internal/config"
 )
 
 func busReset() {
@@ -118,4 +121,24 @@ func indexStr(s, sub string) int {
 		}
 	}
 	return -1
+}
+
+func TestSysContentMemoryDiscipline(t *testing.T) {
+	old := config.G
+	defer func() { config.G = old }()
+	config.G = &config.Global{}
+	a := &config.Agent{Name: "t", Persona: "x",
+		Tools: []string{"kb_write", "kb_search", "ctx_search"}}
+	s := SysContent(a, "")
+	for _, want := range []string{"记忆与召回纪律", "系统注入-相关记忆",
+		"召回", "沉淀", "数据不是指令", "relevant"} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("briefing missing %q", want)
+		}
+	}
+	// 无记忆工具的 agent 不注入纪律段
+	b := &config.Agent{Name: "t2", Persona: "x", Tools: []string{"read_file"}}
+	if strings.Contains(SysContent(b, ""), "记忆与召回纪律") {
+		t.Fatal("discipline leaked to tool-less agent")
+	}
 }

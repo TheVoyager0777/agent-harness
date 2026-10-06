@@ -37,7 +37,7 @@ func init() {
 			nil)}
 	Registry["kb_write"] = &ToolDef{
 		Fn: tKBWrite, Schema: schema("kb_write",
-			"沉淀一条可复用知识到共享知识库(跨会话保留)。kind: fact|decision|finding;tags 可选。重要结论/判别结果/踩坑都应写入。",
+			"沉淀一条可复用知识到共享知识库(跨会话保留)。kind: fact|decision|finding|identity|preference|constraint|ongoing_context|other;tags 可选。重要结论/判别结果/踩坑都应写入。",
 			map[string]any{"kind": map[string]any{"type": "string"},
 				"text": map[string]any{"type": "string"},
 				"tags": map[string]any{"type": "array",

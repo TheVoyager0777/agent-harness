@@ -12,6 +12,7 @@ import (
 	"github.com/xjcdw0777/agent-harness/internal/core"
 	"github.com/xjcdw0777/agent-harness/internal/tools"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -152,7 +153,14 @@ func AgentMain(name string) {
 			msgs = append(msgs, config.Message{Role: "developer", Content: rm})
 		}
 		msgs = append(msgs, history...)
-		msgs = append(msgs, config.Message{Role: "user", Content: strOf(params, "prompt")})
+		// 主动记忆注入(Anuma 式): 对本轮 prompt 召回知识库,前缀注入 user 消息
+		prompt := strOf(params, "prompt")
+		if core.AgentHasTool(agent, "kb_search") {
+			if blk := ctx.KBRecall(prompt, 6); blk != "" {
+				prompt = blk + "\n\n" + prompt
+			}
+		}
+		msgs = append(msgs, config.Message{Role: "user", Content: prompt})
 		if pf := strOf(params, "prefill"); pf != "" {
 			msgs = append(msgs, config.Message{Role: "assistant", Content: pf})
 		}
@@ -220,6 +228,10 @@ func AgentMain(name string) {
 		ctx.Append(agent.Name,
 			config.Message{Role: "user", Content: strOf(params, "prompt")},
 			config.Message{Role: "assistant", Content: out})
+		// 记忆抽取 sidecar(可选): 异步用小模型语义把本轮可持久知识提炼入库
+		if config.G != nil && config.G.Context.MemoryExtract && len(out) > 200 {
+			go memoryExtract(ipc, agent, strOf(params, "prompt"), out)
+		}
 		return out
 	}
 
@@ -245,6 +257,55 @@ func AgentMain(name string) {
 				"ok": true, "result": map[string]any{"text": text}})
 		}
 	}
+}
+
+const memExtractPrompt = `你是记忆抽取器。从给出的对话片段中提炼值得跨会话保留的条目。
+只输出 <knowledge>条目</knowledge> 块(可多个);没有值得保留的就输出 <knowledge></knowledge> 或空。
+值得保留: 实测结论与数字、已做决策及理由、判别实验结果、环境/工具坑、后续要用的约束。
+不要保留: 推测、客套、过程性描述、已在本轮上下文声明过的规则。
+每条一行内完成,语言随原文。`
+
+// memoryExtract: Anuma memory_extract sidecar 同构 — 异步抽取, 不阻塞主循环。
+func memoryExtract(ipc *childIPC, agent *config.Agent, userText, out string) {
+	defer func() { _ = recover() }()
+	msgs := []config.Message{
+		{Role: "system", Content: memExtractPrompt},
+		{Role: "user", Content: "Q: " + core.Trunc(userText, 1500) +
+			"\n\nA: " + core.Trunc(out, 4000)},
+	}
+	res, err := ipc.call("model.call",
+		map[string]any{"messages": msgs}, config.G.TimeoutS+60)
+	if err != nil {
+		return
+	}
+	var mm config.Message
+	mj, _ := json.Marshal(res["message"])
+	json.Unmarshal(mj, &mm)
+	for _, k := range extractKB(mm.Content) {
+		ctx.KBWrite(agent.Name, "auto", k, nil)
+	}
+}
+
+// extractKB: <knowledge> 块提取(与 ctx 包同语义, 本地副本避免跨包循环)。
+func extractKB(text string) []string {
+	var out []string
+	rest := text
+	for {
+		i := strings.Index(rest, "<knowledge>")
+		if i < 0 {
+			break
+		}
+		rest = rest[i+len("<knowledge>"):]
+		j := strings.Index(rest, "</knowledge>")
+		if j < 0 {
+			break
+		}
+		if s := strings.TrimSpace(rest[:j]); s != "" {
+			out = append(out, s)
+		}
+		rest = rest[j+len("</knowledge>"):]
+	}
+	return out
 }
 
 func strOf(m map[string]any, k string) string {

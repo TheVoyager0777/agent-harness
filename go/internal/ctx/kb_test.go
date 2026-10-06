@@ -85,3 +85,31 @@ func TestLoadSession(t *testing.T) {
 func mkMsg(role, content string) config.Message {
 	return config.Message{Role: role, Content: content}
 }
+
+func TestKBRecallInjection(t *testing.T) {
+	setupRoot(t)
+	if KBRecall("anything", 3) != "" {
+		t.Fatal("empty KB should produce empty recall block")
+	}
+	KBWrite("critic", "finding", "f16 decoded length is 2541 bytes", []string{"minter"})
+	KBWrite("critic", "fact", "unrelated weather note", nil)
+	blk := KBRecall("f16 size gap", 5)
+	if !strings.Contains(blk, "<relevant_memories>") ||
+		!strings.Contains(blk, "2541 bytes") {
+		t.Fatalf("recall block missing hit: %q", blk)
+	}
+	if !strings.Contains(blk, "系统注入") {
+		t.Fatal("missing injection marker")
+	}
+}
+
+func TestKBRecallBounded(t *testing.T) {
+	setupRoot(t)
+	for i := 0; i < 30; i++ {
+		KBWrite("a", "fact", "tokengap measurement number "+string(rune('0'+i%10))+string(rune('0'+i/10)), nil)
+	}
+	blk := KBRecall("tokengap", 5)
+	if n := strings.Count(blk, "- ["); n > 5 {
+		t.Fatalf("recall unbounded: %d entries", n)
+	}
+}
