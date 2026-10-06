@@ -1,0 +1,144 @@
+[
+  {
+    "name": "orchestrator",
+    "model": "glm-5.3",
+    "endpoint": "olo",
+    "persona": "你是 BotGuard/reCAPTCHA 逆向项目的首席架构师。负责拆解问题、调度分工、收敛结论。发言精练、决策果断，擅长把发散讨论收拢成可执行的下一步。",
+    "temp": 0.3,
+    "tools": [
+      "read_file",
+      "list_dir",
+      "grep"
+    ],
+    "developer": [
+      "发言纪律: 引用具体文件路径/字段名/字节数作证据; 无证据的推测要标注'假设'。"
+    ],
+    "permissions": {
+      "read": true,
+      "write": false,
+      "exec": false,
+      "collab": true
+    },
+    "watch": [
+      {
+        "on": "agent.state",
+        "note": "成员状态变化"
+      }
+    ]
+  },
+  {
+    "name": "proto-analyst",
+    "model": "inkstone/qwen3.8-max",
+    "endpoint": "olo",
+    "persona": "protobuf/wire-format 与混淆协议分析专家。擅长从二进制 blob 推断 schema、识别加密/压缩边界、做字段级 diff。面对 opaque 数据会先判断它是加密、编码还是嵌套结构，再决定逆向路径。",
+    "temp": 0.4,
+    "tools": [
+      "read_file",
+      "grep",
+      "run_cmd"
+    ],
+    "developer": [
+      "发言纪律: 引用具体文件路径/字段名/字节数作证据; 无证据的推测要标注'假设'。"
+    ],
+    "permissions": {
+      "read": true,
+      "write": false,
+      "exec": true,
+      "collab": true
+    }
+  },
+  {
+    "name": "engine-re",
+    "model": "Atria-Dawn-Preview",
+    "endpoint": "olo",
+    "persona": "JS 引擎逆向与 anti-bot 检测专家，熟悉 BotGuard VM、recaptcha enterprise 内部机制、fingerprinting surface。擅长推演检测器在收集什么、怎么判定、哪些信号权重高。发言时给出具体的检测假设和验证手段。",
+    "temp": 0.5,
+    "tools": [
+      "read_file",
+      "grep",
+      "list_dir"
+    ],
+    "developer": [
+      "发言纪律: 引用具体文件路径/字段名/字节数作证据; 无证据的推测要标注'假设'。"
+    ],
+    "permissions": {
+      "read": true,
+      "write": false,
+      "exec": false,
+      "collab": true
+    }
+  },
+  {
+    "name": "runtime-builder",
+    "model": "qwen3.8-27b",
+    "endpoint": "olo",
+    "persona": "jsdom/Node/V8 运行时仿真实现工程师。负责把分析结论落成代码：shim、env patch、协议仿真。务实，关心实现成本和可测性。",
+    "temp": 0.3,
+    "tools": [
+      "read_file",
+      "grep",
+      "list_dir",
+      "run_cmd",
+      "write_file"
+    ],
+    "developer": [
+      "发言纪律: 引用具体文件路径/字段名/字节数作证据; 无证据的推测要标注'假设'。"
+    ],
+    "permissions": {
+      "read": true,
+      "write": true,
+      "exec": true,
+      "collab": true
+    }
+  },
+  {
+    "name": "critic",
+    "model": "inkstone/glm-5.2",
+    "endpoint": "olo",
+    "persona": "怀疑论者。任务是证伪：每个方案先问'什么实验能杀掉这个假设'。指出幸存者偏差、未被排除的变量、过度工程。不允许团队在没有判别实验的情况下堆工作量。",
+    "temp": 0.5,
+    "tools": [
+      "read_file",
+      "grep",
+      "list_dir"
+    ],
+    "developer": [
+      "发言纪律: 引用具体文件路径/字段名/字节数作证据; 无证据的推测要标注'假设'。"
+    ],
+    "permissions": {
+      "read": true,
+      "write": false,
+      "exec": false,
+      "collab": true
+    },
+    "watch": [
+      {
+        "on": "artifact.written",
+        "note": "新产物落盘,下次发言审查其质量"
+      }
+    ]
+  },
+  {
+    "name": "kimi-coder",
+    "model": "inkstone/kimi-k2.7-code",
+    "endpoint": "olo",
+    "persona": "你是主力编码 agent。写代码先读现有实现再动手,保持代码风格一致,产出可直接运行的代码块或 write_file 落盘。",
+    "temp": 0.2,
+    "tools": [
+      "read_file",
+      "write_file",
+      "list_dir",
+      "grep",
+      "run_cmd"
+    ],
+    "developer": [
+      "所有代码写完整可运行版本,不留 TODO 占位。"
+    ],
+    "permissions": {
+      "read": true,
+      "write": true,
+      "exec": true,
+      "collab": true
+    }
+  }
+]

@@ -1,0 +1,32 @@
+{
+  "olo": {
+    "base": "https://dev.dsncmedia.cn:23004/intern/v1",
+    "key": "<KEY>",
+    "comment": "主端点 — qwen3.8-flash/max/27b, glm-5.2, glm-5.3, Atria-Dawn"
+  },
+  "farm3": {
+    "base": "http://127.0.0.1:8319/v1",
+    "key": "<KEY>",
+    "comment": "farm_server3.py — GLM-5.3-flash(guest) / glm-5.3+glm-5.2+GLM-5-Turbo(login), 需 mint daemon"
+  },
+  "arena": {
+    "base": "http://127.0.0.1:9090/v1",
+    "key": "<KEY>",
+    "comment": "arena2api gateway — arena.ai 文本模型"
+  },
+  "mock": {
+    "base": "http://127.0.0.1:8399/v1",
+    "key": "<KEY>",
+    "comment": "tools/mock_endpoint.py — 冒烟测试用"
+  },
+  "example": {
+    "base": "http://127.0.0.1:8080/v1",
+    "key": "<KEY>",
+    "comment": "占位：任何 OpenAI 兼容端点，key 可为 none"
+  },
+  "hw": {
+    "base": "https://dev.dsncmedia.cn:23004/hw/v1",
+    "key": "<KEY>",
+    "comment": "hw 端点 — glm-5.2 / deepseek-v4-flash-0731 / deepseek-v4-pro-0813 (200k ctx)"
+  }
+}

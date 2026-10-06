@@ -1,0 +1,13 @@
+# 密钥与本地状态
+endpoints.json
+.sessions.json
+*.stderr.log
+# 运行产物
+runs/
+mock.log
+_wtest.txt
+__pycache__/
+*.pyc
+# 构建
+go/harness.exe
+go/harness

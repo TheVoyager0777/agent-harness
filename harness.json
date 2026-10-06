@@ -1,0 +1,24 @@
+{
+  "timeout_s": 300,
+  "max_tool_rounds": 10,
+  "tool_output_max": 12000,
+  "tool_roots": [
+    "D:\\Mint-Simulator-Dev",
+    "D:\\zcode-workspace\\arena-gateway",
+    "D:\\zcode-workspace\\arena2api-ref"
+  ],
+  "write_roots": [
+    "D:\\Mint-Simulator-Dev"
+  ],
+  "reminder": {
+    "text": "提醒: 结论必须落到可执行的判别实验或代码。引用真实文件/数据作证据,不要凭印象描述协议细节。可以用工具直接查证。",
+    "every": 2
+  },
+  "sessions": "run",
+  "role_map": {
+    "developer": "system"
+  },
+  "stream": true,
+  "turn_timeout_s": 1800,
+  "serve_port": 8390
+}
