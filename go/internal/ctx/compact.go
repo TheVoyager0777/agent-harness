@@ -73,6 +73,7 @@ type Compactor struct {
 	running  bool
 	pending  []config.Message // 完成待换入: [summaryMsg]+pins
 	seed     string           // 旧摘要(增量续压)
+	pins     []string         // 最近一次的 pin 集合(随摘要持久化)
 	sumCache map[string]string
 }
 
@@ -113,10 +114,12 @@ func (c *Compactor) Apply(history []config.Message) []config.Message {
 	c.mu.Unlock()
 	go func() {
 		out, pins := c.compress(seg)
+		kbDistill(c.Agent.Name, seg) // <knowledge> 块自动提炼入库
 		if len(out) > 0 {
 			c.mu.Lock()
 			c.pending = append(out, pins...)
 			c.mu.Unlock()
+			c.saveState() // 跨 run 会话复用: 落盘 seed+pins
 		}
 		c.mu.Lock()
 		c.running = false
@@ -133,6 +136,9 @@ func (c *Compactor) compress(seg []config.Message) ([]config.Message, []config.M
 	}
 	rest, ps := extractPins(views)
 	pins := pinMsgs(ps)
+	c.mu.Lock()
+	c.pins = ps.list()
+	c.mu.Unlock()
 
 	// user 边界切块
 	var chunks [][]msgView

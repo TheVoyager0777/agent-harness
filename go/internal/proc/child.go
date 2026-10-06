@@ -66,6 +66,10 @@ func AgentMain(name string) {
 	done := make(chan struct{})
 	history := []config.Message{}
 	ctx.SyncConf()
+	// 会话复用: --resume / context.resume 时从档案+压缩态恢复历史
+	if config.ResumeEnabled() {
+		history = ctx.LoadSession(name, 8000)
+	}
 	comp := ctx.NewCompactor(agent, func(msgs []config.Message) (string, error) {
 		res, err := ipc.call("model.call",
 			map[string]any{"messages": msgs}, config.G.TimeoutS+120)

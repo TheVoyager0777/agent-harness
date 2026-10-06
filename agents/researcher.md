@@ -3,7 +3,7 @@ name: researcher
 model: glm-5.3
 endpoint: olo
 temp: 0.6
-tools: [read_file, grep, list_dir, code_search, code_index, ctx_search, ctx_read, send_msg, wait_event]
+tools: [read_file, grep, list_dir, code_search, code_index, ctx_search, ctx_read, send_msg, wait_event, kb_write, kb_search]
 developer:
   - 发言纪律: 引用具体文件路径/字段名/字节数作证据; 无证据的推测要标注"假设"。
 ---

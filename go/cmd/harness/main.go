@@ -15,7 +15,7 @@ package main
 //	agents | tools | check
 //	_agent NAME               (子进程入口)
 //
-// 全局: --home DIR --endpoint E --no-tools --no-procs --reminder s
+// 全局: --home DIR --endpoint E --no-tools --no-procs --reminder s --resume
 
 import (
 	"encoding/json"
@@ -75,6 +75,10 @@ func main() {
 	config.PrefillFlag = optStr(rest, "--prefill")
 	if r := optStr(rest, "--reminder"); r != "" {
 		config.RemindOverride = &r
+	}
+	if optBool(rest, "--resume") {
+		t := true
+		config.ResumeOverride = &t
 	}
 
 	get := func(i int) string {
@@ -146,10 +150,19 @@ func main() {
 
 // ---------- 参数小工具 ----------
 
+// boolFlags: 不吞下一个参数的开关类 flag(其余 --k 视为带值)。
+var boolFlags = map[string]bool{
+	"--no-tools": true, "--no-procs": true, "--resume": true,
+	"--version": true, "--help": true, "-h": true,
+}
+
 func positional(args []string) []string {
 	var out []string
 	for i := 0; i < len(args); i++ {
 		if strings.HasPrefix(args[i], "-") {
+			if boolFlags[args[i]] {
+				continue // 开关: 不吃下一个参数
+			}
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 			}

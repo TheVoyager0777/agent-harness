@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/xjcdw0777/agent-harness/internal/config"
 	"github.com/xjcdw0777/agent-harness/internal/core"
+	"github.com/xjcdw0777/agent-harness/internal/ctx"
 	"github.com/xjcdw0777/agent-harness/internal/model"
 	"github.com/xjcdw0777/agent-harness/internal/tools"
 )
@@ -22,6 +23,10 @@ func speakInproc(run *core.Run, name, prompt, extraSys, prefill string) string {
 	}
 	if rm := core.ReminderText(); rm != "" {
 		msgs = append(msgs, config.Message{Role: "developer", Content: rm})
+	}
+	// 会话复用(inproc 无自持 history, 注入档案种子)
+	if config.ResumeEnabled() {
+		msgs = append(msgs, ctx.LoadSession(name, 8000)...)
 	}
 	msgs = append(msgs, config.Message{Role: "user", Content: prompt})
 	if prefill != "" {
@@ -63,6 +68,10 @@ func speakInproc(run *core.Run, name, prompt, extraSys, prefill string) string {
 	}
 	tools.Ex.ReleaseAll(name)
 	run.SM.Set(name, "done", "")
+	// inproc 同样记档案, 保证 ctx_search/会话复用可用
+	ctx.Append(name,
+		config.Message{Role: "user", Content: prompt},
+		config.Message{Role: "assistant", Content: out})
 	fmt.Println(out)
 	wrote := run.ExtractArtifacts(out)
 	run.Say(name, out, wrote)

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/xjcdw0777/agent-harness/internal/config"
 	"github.com/xjcdw0777/agent-harness/internal/core"
+	"github.com/xjcdw0777/agent-harness/internal/ctx"
 	"github.com/xjcdw0777/agent-harness/internal/index"
 	"github.com/xjcdw0777/agent-harness/internal/model"
 	"github.com/xjcdw0777/agent-harness/internal/tools"
@@ -48,6 +49,7 @@ func init() {
 		defer func() { _ = recover() }()
 		return index.SummaryNB()
 	}
+	core.KBDigest = ctx.KBDigest
 }
 
 // Alive: 子进程仍在运行。
@@ -91,6 +93,9 @@ func Spawn(name string, run *core.Run) *AgentProc {
 	errLog, _ := os.Create(filepath.Join(run.Dir, name+".stderr.log"))
 	cmd := exec.Command(os.Args[0], "_agent", name, "--home", config.Root)
 	cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8")
+	if config.ResumeEnabled() {
+		cmd.Env = append(cmd.Env, "HARNESS_RESUME=1")
+	}
 	stdin, _ := cmd.StdinPipe()
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Stderr = errLog

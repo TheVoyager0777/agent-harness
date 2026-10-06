@@ -35,10 +35,26 @@ func init() {
 			"代码索引状态/重建。action: status|refresh",
 			map[string]any{"action": map[string]any{"type": "string"}},
 			nil)}
+	Registry["kb_write"] = &ToolDef{
+		Fn: tKBWrite, Schema: schema("kb_write",
+			"沉淀一条可复用知识到共享知识库(跨会话保留)。kind: fact|decision|finding;tags 可选。重要结论/判别结果/踩坑都应写入。",
+			map[string]any{"kind": map[string]any{"type": "string"},
+				"text": map[string]any{"type": "string"},
+				"tags": map[string]any{"type": "array",
+					"items": map[string]any{"type": "string"}}},
+			[]string{"text"})}
+	Registry["kb_search"] = &ToolDef{
+		Fn: tKBSearch, Schema: schema("kb_search",
+			"检索共享知识库(全体 agent 沉淀的跨会话知识)。",
+			map[string]any{"query": map[string]any{"type": "string"},
+				"limit": map[string]any{"type": "integer"}},
+			[]string{"query"})}
 	toolClass["ctx_search"] = "read"
 	toolClass["ctx_read"] = "read"
 	toolClass["code_search"] = "read"
 	toolClass["code_index"] = "read"
+	toolClass["kb_search"] = "read"
+	toolClass["kb_write"] = "collab"
 }
 
 func tCtxSearch(a *config.Agent, args map[string]any) (string, error) {
@@ -71,6 +87,28 @@ func tCodeSearch(a *config.Agent, args map[string]any) (string, error) {
 	for _, c := range chunks {
 		out += fmt.Sprintf("### %s:%d %s\n```%s\n%s\n```\n",
 			c.Path, c.Line, c.Name, c.Lang, c.Text)
+	}
+	return out, nil
+}
+
+func tKBWrite(a *config.Agent, args map[string]any) (string, error) {
+	var tags []string
+	if ts, ok := args["tags"].([]any); ok {
+		for _, t := range ts {
+			tags = append(tags, fmt.Sprint(t))
+		}
+	}
+	return ctx.KBWrite(a.Name, argS(args, "kind"), argS(args, "text"), tags), nil
+}
+
+func tKBSearch(a *config.Agent, args map[string]any) (string, error) {
+	hits := ctx.KBSearch(argS(args, "query"), argI(args, "limit", 8))
+	if len(hits) == 0 {
+		return "(无命中)", nil
+	}
+	out := ""
+	for _, e := range hits {
+		out += fmt.Sprintf("[%s][%s] %s (%s)\n---\n", e.Kind, e.TS, e.Text, e.Agent)
 	}
 	return out, nil
 }

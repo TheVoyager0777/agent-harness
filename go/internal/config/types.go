@@ -88,6 +88,7 @@ type ContextConf struct {
 	MaxEst     int64 `json:"max_est"`     // 压缩触发阈值, 0=关
 	KeepRecent int   `json:"keep_recent"` // 尾部保留原文消息数
 	ChunkEst   int64 `json:"chunk_est"`   // 摘要单块输入上限
+	Resume     bool  `json:"resume"`      // 跨 run 会话复用(摘要+pins+档案尾巴)
 }
 
 func (g *Global) StreamEnabled() bool {

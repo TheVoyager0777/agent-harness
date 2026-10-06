@@ -15,6 +15,9 @@ var ctxAt time.Time
 // IndexOverview: 索引概览钩子(由 proc 装配, 必须非阻塞)。
 var IndexOverview func() string
 
+// KBDigest: 共享知识库摘要钩子(由 proc 装配)。
+var KBDigest func(limit int) string
+
 func hasTool(a *config.Agent, name string) bool {
 	for _, t := range a.Tools {
 		if t == name {
@@ -50,6 +53,14 @@ func envBriefing(a *config.Agent) string {
 	}
 	if hasTool(a, "ctx_search") {
 		b.WriteString("记忆: 早期历史可能被压缩;用 ctx_search 检索档案、ctx_read 回读原文区间。\n")
+	}
+	if hasTool(a, "kb_write") || hasTool(a, "kb_search") {
+		b.WriteString("知识库: kb_write 沉淀可复用结论(跨会话保留,新 run 的 agent 都能看见);kb_search 检索。产出中的 <knowledge>...</knowledge> 块会在压缩时自动提炼入库。\n")
+		if KBDigest != nil {
+			if d := KBDigest(15); d != "" {
+				b.WriteString("知识库近期条目:\n" + d + "\n")
+			}
+		}
 	}
 	if hasTool(a, "send_msg") || hasTool(a, "wait_event") {
 		b.WriteString("协作: send_msg 给其他 agent 投递消息;wait_event 阻塞等待总线事件(如等待前置任务汇报)。\n")
