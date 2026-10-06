@@ -3,11 +3,11 @@ package modes
 // 进程内回退路径(--no-procs): 工具循环直接在主进程跑。
 
 import (
+	"fmt"
 	"github.com/xjcdw0777/agent-harness/internal/config"
 	"github.com/xjcdw0777/agent-harness/internal/core"
 	"github.com/xjcdw0777/agent-harness/internal/model"
 	"github.com/xjcdw0777/agent-harness/internal/tools"
-	"fmt"
 )
 
 func speakInproc(run *core.Run, name, prompt, extraSys, prefill string) string {
@@ -61,6 +61,7 @@ func speakInproc(run *core.Run, name, prompt, extraSys, prefill string) string {
 		}
 		run.SM.Set(name, "thinking", "")
 	}
+	tools.Ex.ReleaseAll(name)
 	run.SM.Set(name, "done", "")
 	fmt.Println(out)
 	wrote := run.ExtractArtifacts(out)

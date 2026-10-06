@@ -101,3 +101,40 @@ flags: `--home` 配置根 | `--endpoint` 强制单端点 | `--agents a,b` | `--i
 | `tools/*.py` | 插件（暴露 `TOOLS={name:{fn,schema}}`） |
 | `workspace/context/*.md` | 共享上下文 → system |
 | `runs/<ts>-<mode>-<id>/` | transcript.md · events.jsonl · state.json · artifacts/ · control.port · *.stderr.log |
+
+## 构建与安装
+
+```sh
+cd go
+make build       # ./harness (ldflags 注入版本)
+make check       # fmt + vet + test + build
+make release     # dist/ 三平台二进制
+make install     # go install → $GOPATH/bin/harness
+```
+
+无 make 环境等价命令: `cd go && go build -ldflags "-X main.Version=dev" -o harness ./cmd/harness`。
+`harness version` 查看构建版本。Go ≥1.21, 零三方依赖。
+
+## 协作原语(锁)
+
+- `lock_acquire {key: path|"exec"|"*", timeout_s}`: 长程持锁——跨工具轮次独占资源,
+  其他 agent 触同键阻塞等释放; `lock_release` 释放; turn 结束/进程退出自动清
+- 同批次 tool_calls 经 `tool.batch` 单请求下发, 执行器按资源键并行调度、组内保序
+
+## 工具清单
+
+内置: `read_file` `list_dir` `grep` `write_file` `run_cmd` `wait_event` `send_msg`
+`lock_acquire` `lock_release` `ctx_search` `ctx_read` `code_search` `file_overview`
+
+## 目录约定
+
+- `legacy/harness.py`: Python 参考实现(冻结, 不维护)
+- `tools/mock_endpoint.py`: 冒烟假端点, `--endpoint mock` 零成本测调度
+
+## 开源信息
+
+- License: [MIT](LICENSE)
+- 贡献/提交规范: [CONTRIBUTING.md](CONTRIBUTING.md)
+- CI: `.github/workflows/ci.yml` (gofmt/vet/test/build)
+- **安全**: `endpoints.json`/`harness.json` 的密钥只留本地(gitignored);
+  模板见 `endpoints.example.json`。`archive/`/`runs/`/`context/archive/` 为运行时产物不入库

@@ -13,3 +13,8 @@ go/harness.exe
 go/harness
 archive/
 go/harness.exe
+*.log
+_tooltest*
+_mock_msgs.log
+dist/
+context/archive/

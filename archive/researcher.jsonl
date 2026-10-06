@@ -1,2 +1,0 @@
-{"role":"user","content":"hi","t":"17:19:26"}
-{"role":"assistant","content":"[mock:glm-5.3] persona=你是研究员型 agent。面对陌生代码库/协议/二进制数据,先建立全局结构假设, last_user=hi","t":"17:19:26"}

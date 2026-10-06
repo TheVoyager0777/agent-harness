@@ -3,10 +3,10 @@ package core
 // Run 生命周期 + 事件总线 + 统一状态机。
 
 import (
-	"github.com/xjcdw0777/agent-harness/internal/config"
-		"encoding/hex"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/xjcdw0777/agent-harness/internal/config"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -213,7 +213,34 @@ func NewRun(mode, topic string) *Run {
 	r.SM = NewStateMachine(r)
 	r.Ep = JobEp
 	busRun = r
+	runsMu.Lock()
+	allRuns = append(allRuns, r)
+	runsMu.Unlock()
 	return r
+}
+
+// Close: 关闭事件文件句柄。
+func (r *Run) Close() {
+	r.evMu.Lock()
+	defer r.evMu.Unlock()
+	if r.evFile != nil {
+		r.evFile.Close()
+		r.evFile = nil
+	}
+}
+
+var runsMu sync.Mutex
+var allRuns []*Run
+
+// CloseAllRuns: 测试/退出路径清句柄。
+func CloseAllRuns() {
+	runsMu.Lock()
+	list := allRuns
+	allRuns = nil
+	runsMu.Unlock()
+	for _, r := range list {
+		r.Close()
+	}
 }
 
 func (r *Run) Say(who, text string, wrote []string) {
@@ -236,7 +263,9 @@ func (r *Run) Event(kv map[string]any) {
 	r.evMu.Lock()
 	defer r.evMu.Unlock()
 	b, _ := json.Marshal(kv)
-	r.evFile.Write(append(b, '\n'))
+	if r.evFile != nil {
+		r.evFile.Write(append(b, 10))
+	}
 }
 
 var fileBlockRe = regexp.MustCompile("(?s)```file:([^\n]+)\n(.*?)```")

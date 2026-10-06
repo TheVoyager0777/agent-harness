@@ -1,0 +1,17 @@
+name: ci
+on:
+  push: { branches: [master, main] }
+  pull_request:
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.23" }
+      - working-directory: go
+        run: |
+          gofmt -l . | (! grep .) || (echo "gofmt needed" && exit 1)
+          go vet ./...
+          go test ./...
+          go build ./cmd/harness

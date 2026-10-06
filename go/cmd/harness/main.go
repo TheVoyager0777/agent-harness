@@ -35,6 +35,9 @@ import (
 	"time"
 )
 
+// Version: 构建期 -X main.Version=x.y.z 注入(Makefile ldflags)。
+var Version = "dev"
+
 var homeFlag = flag.String("home", "", "配置根(endpoints.json 所在目录)")
 
 func main() {
@@ -134,6 +137,8 @@ func main() {
 		} else {
 			fmt.Println(index.Summary())
 		}
+	case "version":
+		fmt.Println("harness " + Version)
 	default:
 		fmt.Println("未知命令 " + cmd)
 	}

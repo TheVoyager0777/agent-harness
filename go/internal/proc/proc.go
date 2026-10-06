@@ -295,6 +295,7 @@ func (p *AgentProc) Turn(prompt string, extraSys string, prefill string, timeout
 		p.Run.SM.Set(p.Name, "error", "turn timeout")
 		return "*(turn timeout)*"
 	}
+	tools.Ex.ReleaseAll(p.Name) // turn 结束: 清持锁, 防残留阻塞他人
 	p.Run.SM.Set(p.Name, "done", "")
 	text, _ := (res["result"].(map[string]any))["text"].(string)
 	if !p.LastStreamed && text != "" {
@@ -306,6 +307,7 @@ func (p *AgentProc) Turn(prompt string, extraSys string, prefill string, timeout
 }
 
 func (p *AgentProc) Stop() {
+	tools.Ex.ReleaseAll(p.Name) // 进程退出同清
 	p.send(map[string]any{"type": "cmd", "cmd": "shutdown", "id": -1})
 	done := make(chan struct{})
 	go func() { p.cmd.Wait(); close(done) }()

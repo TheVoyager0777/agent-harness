@@ -5,11 +5,11 @@ package tools
 // 插件工具归 "exec" 类(能跑命令)。
 
 import (
-	"github.com/xjcdw0777/agent-harness/internal/config"
-	"github.com/xjcdw0777/agent-harness/internal/core"
-		"bufio"
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/xjcdw0777/agent-harness/internal/config"
+	"github.com/xjcdw0777/agent-harness/internal/core"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -73,6 +73,14 @@ func init() {
 		"向另一 agent 收件箱注入消息(协作)",
 		p("agent", "string", "text", "string"), []string{"agent", "text"})}
 	toolClass["send_msg"] = "collab"
+	Registry["lock_acquire"] = &ToolDef{tLockAcquire, schema("lock_acquire",
+		"长程持锁: 独占某资源跨多个工具轮次(path|exec|*)。其他 agent 触同键阻塞等释放",
+		p("key", "string", "timeout_s", "number"), []string{"key"})}
+	toolClass["lock_acquire"] = "collab"
+	Registry["lock_release"] = &ToolDef{tLockRelease, schema("lock_release",
+		"释放 lock_acquire 持有的资源键",
+		p("key", "string"), []string{"key"})}
+	toolClass["lock_release"] = "collab"
 }
 
 // ---------- 沙箱 ----------
@@ -296,6 +304,26 @@ func tWaitEvent(a *config.Agent, args map[string]any) (string, error) {
 
 // AgentInject: 向运行中 agent 注入消息, proc 包装配(解耦 tools→proc)。
 var AgentInject func(name, text string) error
+
+func tLockAcquire(a *config.Agent, args map[string]any) (string, error) {
+	key := argS(args, "key")
+	if key == "" {
+		return "", fmt.Errorf("key required")
+	}
+	to := time.Duration(argI(args, "timeout_s", 30)) * time.Second
+	if !Ex.Acquire(a.Name, key, to) {
+		return "", fmt.Errorf("acquire timeout: %s held by another agent", key)
+	}
+	return fmt.Sprintf("acquired %s (release with lock_release, or auto-release at turn end)",
+		normHoldKey(key)), nil
+}
+
+func tLockRelease(a *config.Agent, args map[string]any) (string, error) {
+	if Ex.Release(a.Name, argS(args, "key")) {
+		return "released", nil
+	}
+	return "not held by you", nil
+}
 
 func tSendMsg(a *config.Agent, args map[string]any) (string, error) {
 	if AgentInject == nil {

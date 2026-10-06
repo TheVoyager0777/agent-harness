@@ -26,7 +26,7 @@ func setup(t *testing.T) string {
 		ToolRoots:     []string{d},
 		WriteRoots:    []string{d},
 		ToolOutputMax: 12000}
-	Ex = &Executor{locks: map[string]*sync.RWMutex{}}
+	Ex = NewExecutor()
 	return d
 }
 
@@ -158,5 +158,106 @@ func TestResultOrderStable(t *testing.T) {
 		if res[i].Content != "C-"+n {
 			t.Fatalf("res[%d]=%q 应为 C-%s", i, res[i].Content, n)
 		}
+	}
+}
+
+// ---------- 长程持锁 ----------
+
+// 自持可继续调同键资源; 他人被阻塞到释放
+func TestHoldBlocksOthers(t *testing.T) {
+	d := setup(t)
+	fp := filepath.ToSlash(filepath.Join(d, "held.txt"))
+	os.WriteFile(fp, []byte("orig"), 0o644)
+	ag1, ag2 := tAgent(), tAgent()
+	ag2.Name = "t2"
+	ag2.Tools = ag1.Tools
+
+	if !Ex.Acquire(ag1.Name, fp, time.Second) {
+		t.Fatal("acquire failed")
+	}
+	// 自持: 同键写直接执行不死锁
+	res := Ex.ExecBatch(ag1, []Call{
+		{ID: "w", Name: "write_file", Args: `{"path":"` + fp + `","content":"by-owner"}`}})
+	if !strings.Contains(res[0].Content, "wrote") {
+		t.Fatalf("owner write blocked: %s", res[0].Content)
+	}
+	// 他人读同键: 阻塞直到释放
+	done := make(chan string, 1)
+	go func() {
+		r := Ex.ExecBatch(ag2, []Call{
+			{ID: "r", Name: "read_file", Args: `{"path":"` + fp + `"}`}})
+		done <- r[0].Content
+	}()
+	select {
+	case <-done:
+		t.Fatal("other agent read should block on held key")
+	case <-time.After(80 * time.Millisecond):
+	}
+	Ex.Release(ag1.Name, fp)
+	select {
+	case c := <-done:
+		if c != "by-owner" {
+			t.Fatalf("read=%q", c)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("read did not proceed after release")
+	}
+}
+
+// 持有 exec 键→他人 run_cmd 阻塞; ReleaseAll 一次清完
+func TestHoldExecAndReleaseAll(t *testing.T) {
+	setup(t)
+	ag1, ag2 := tAgent(), tAgent()
+	ag2.Name = "t2"
+	if !Ex.Acquire(ag1.Name, "exec", time.Second) {
+		t.Fatal("acquire exec")
+	}
+	Ex.Acquire(ag1.Name, "somefile.txt", time.Second)
+	// 全局 * 也会被 exec 键挡? 不——exec 只挡 proc:exec 键
+	blocked := make(chan string, 1)
+	go func() {
+		r := Ex.ExecBatch(ag2, []Call{
+			{ID: "x", Name: "run_cmd", Args: `{"cmd":"echo hi"}`}})
+		blocked <- r[0].Content
+	}()
+	time.Sleep(60 * time.Millisecond)
+	select {
+	case <-blocked:
+		t.Fatal("run_cmd should block on held proc:exec")
+	default:
+	}
+	Ex.ReleaseAll(ag1.Name)
+	select {
+	case c := <-blocked:
+		if !strings.Contains(c, "hi") {
+			t.Fatalf("run_cmd=%q", c)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("run_cmd stuck after ReleaseAll")
+	}
+	if len(Ex.Holds()) != 0 {
+		t.Fatal("holds not empty after ReleaseAll")
+	}
+}
+
+// 持锁超时路径: 键被占→Acquire 超时失败
+func TestAcquireTimeout(t *testing.T) {
+	setup(t)
+	if !Ex.Acquire("a1", "res.txt", time.Second) {
+		t.Fatal("first acquire")
+	}
+	t0 := time.Now()
+	if Ex.Acquire("a2", "res.txt", 80*time.Millisecond) {
+		t.Fatal("second acquire should timeout")
+	}
+	if time.Since(t0) < 60*time.Millisecond {
+		t.Fatal("returned before timeout")
+	}
+	// 非 owner 释放无效
+	if Ex.Release("a2", "res.txt") {
+		t.Fatal("non-owner release succeeded")
+	}
+	if !Ex.Release("a1", "res.txt") {
+		t.Fatal("owner release failed")
 	}
 }

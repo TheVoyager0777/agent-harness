@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/xjcdw0777/agent-harness/internal/config"
 )
@@ -32,11 +34,18 @@ type lockKey struct {
 }
 
 // Executor: 全局执行器, 进程内单例——所有 agent 子进程的工具调用汇到此协调。
-var Ex = &Executor{locks: map[string]*sync.RWMutex{}}
+var Ex = NewExecutor()
+
+func NewExecutor() *Executor {
+	return &Executor{locks: map[string]*sync.RWMutex{},
+		holds: map[string]string{}, release: map[string]chan struct{}{}}
+}
 
 type Executor struct {
-	mu    sync.Mutex
-	locks map[string]*sync.RWMutex
+	mu      sync.Mutex
+	locks   map[string]*sync.RWMutex
+	holds   map[string]string        // 资源键→持有 agent (跨批次持锁)
+	release map[string]chan struct{} // 持有键的释放通知
 }
 
 func (e *Executor) slot(k string) *sync.RWMutex {
@@ -135,6 +144,16 @@ func (e *Executor) ExecBatch(a *config.Agent, calls []Call) []Result {
 			l := e.slot(g.key)
 			for _, i := range g.idxs {
 				c := calls[i]
+				// 持锁检查: 他人持锁→等释放; 自持→跳过槽锁(防自死锁)
+				ok, self := e.waitHolds(a.Name, g.key, 120*time.Second)
+				if !ok {
+					res[i].Content = "tool error: lock wait timeout on " + g.key
+					continue
+				}
+				if self {
+					res[i].Content = execParsed(a, c.Name, c.Args)
+					continue
+				}
 				ex := keys[i].excl
 				if ex {
 					l.Lock()
@@ -152,6 +171,136 @@ func (e *Executor) ExecBatch(a *config.Agent, calls []Call) []Result {
 	}
 	wg.Wait()
 	return res
+}
+
+// ---------- 长程持锁 ----------
+// agent 一次请求内跨多轮工具调用独占某资源:
+// lock_acquire{path|key:"exec"|"*"} 持锁 → 后续各轮调用跳过排队,
+// 其他 agent 触同键阻塞等释放; lock_release / turn 结束 / 进程退出时释放。
+
+// normHoldKey: 用户给的资源名→执行器键。
+func normHoldKey(k string) string {
+	switch k {
+	case "*", "global":
+		return "*"
+	case "exec", "proc:exec":
+		return "proc:exec"
+	case "collab", "index":
+		return k
+	}
+	if strings.HasPrefix(k, "file:") || strings.HasPrefix(k, "tool:") ||
+		strings.HasPrefix(k, "ctx:") {
+		return k
+	}
+	return pathKey(k) // 默认按文件路径
+}
+
+// Acquire: 独占持有资源键。同 owner 重入幂等; 超时返回 false。
+func (e *Executor) Acquire(owner, rawKey string, timeout time.Duration) bool {
+	key := normHoldKey(rawKey)
+	l := e.slot(key)
+	deadline := time.Now().Add(timeout)
+	for {
+		e.mu.Lock()
+		if e.holds[key] == owner {
+			e.mu.Unlock()
+			return true
+		}
+		e.mu.Unlock()
+		if l.TryLock() {
+			e.mu.Lock()
+			e.holds[key] = owner
+			e.release[key] = make(chan struct{})
+			e.mu.Unlock()
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// Release: 释放持有键(仅 owner 可放)。返回是否真释放。
+func (e *Executor) Release(owner, rawKey string) bool {
+	key := normHoldKey(rawKey)
+	e.mu.Lock()
+	if e.holds[key] != owner {
+		e.mu.Unlock()
+		return false
+	}
+	delete(e.holds, key)
+	close(e.release[key])
+	delete(e.release, key)
+	l := e.locks[key] // slot() 会再锁 e.mu——在 mu 内直接取
+	e.mu.Unlock()
+	l.Unlock()
+	return true
+}
+
+// ReleaseAll: turn 结束/进程退出时清掉该 agent 全部持锁。
+func (e *Executor) ReleaseAll(owner string) {
+	var keys []string
+	e.mu.Lock()
+	for k, o := range e.holds {
+		if o == owner {
+			keys = append(keys, k)
+		}
+	}
+	e.mu.Unlock()
+	for _, k := range keys {
+		e.Release(owner, k)
+	}
+}
+
+// Holds: 当前持锁快照(status/diagnostics)。
+func (e *Executor) Holds() map[string]string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	out := map[string]string{}
+	for k, o := range e.holds {
+		out[k] = o
+	}
+	return out
+}
+
+// waitHolds: 调用前检查。返回 (ok, self):
+//   ok=false   等待超时, 调用应失败
+//   self=true  本 agent 持有该键(或全局)*——跳过槽锁直接执行, 否则自死锁
+func (e *Executor) waitHolds(owner, key string, timeout time.Duration) (bool, bool) {
+	deadline := time.Now().Add(timeout)
+	for {
+		e.mu.Lock()
+		holder, held := e.holds[key]
+		global, gHeld := e.holds["*"]
+		if held && holder == owner {
+			e.mu.Unlock()
+			return true, true
+		}
+		if !held && (!gHeld || global == owner) {
+			e.mu.Unlock()
+			return true, false
+		}
+		if gHeld && global == owner && !held {
+			e.mu.Unlock()
+			return true, false // 自持全局锁,本键无锁→正常走槽锁
+		}
+		var ch chan struct{}
+		if held && holder != owner {
+			ch = e.release[key]
+		} else {
+			ch = e.release["*"]
+		}
+		e.mu.Unlock()
+		select {
+		case <-ch:
+		case <-time.After(time.Until(deadline)):
+			return false, false
+		}
+		if time.Now().After(deadline) {
+			return false, false
+		}
+	}
 }
 
 // execParsed: 校验已过, 解析参数并执行+截断。
