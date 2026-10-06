@@ -18,3 +18,4 @@ _tooltest*
 _mock_msgs.log
 dist/
 context/archive/
+.harness-index.json
