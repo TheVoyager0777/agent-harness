@@ -34,6 +34,4 @@ Conventional Commits: `<type>(<scope>): <subject>`
 
 ## CI
 
-`ci.example.yml` 是现成的 GitHub Actions 工作流(gofmt/vet/test/build)。
-启用: 复制为 `.github/workflows/ci.yml`。注: 用 PAT 推送 workflow 文件
-需要 `workflow` scope——网页端直接上传或带 scope 的 token 均可。
+`.github/workflows/ci.yml` 已启用: gofmt/vet/test/build on push+PR。
