@@ -13,7 +13,32 @@ class H(BaseHTTPRequestHandler):
         sys_prompt = msgs[0]["content"] if msgs and msgs[0]["role"] == "system" else ""
         persona = sys_prompt.split("\n")[0][:40] if sys_prompt else "?"
         last = msgs[-1]["content"][:60] if msgs else ""
-        content = f"[mock:{body.get('model','?')}] persona={persona} last_user={last}"
+        # TOOLTEST: 首轮发 3 个并行 tool_calls 测批量调度; 含 tool 结果后回复汇总
+        has_toolres = any(m.get("role") == "tool" for m in msgs)
+        with open("_mock_msgs.log", "a", encoding="utf-8") as f:
+            f.write(str([(m.get("role"), str(m.get("content"))[:25])
+                        for m in msgs]) + chr(10))
+        want_tool = any("TOOLTEST" in str(m.get("content", "")) for m in msgs)
+        if want_tool and not has_toolres:
+            tcs = [
+                {"id": "c1", "type": "function", "function": {
+                    "name": "write_file",
+                    "arguments": '{\"path\":\"_tooltest.txt\",\"content\":\"TC-DATA\"}'}},
+                {"id": "c2", "type": "function", "function": {
+                    "name": "list_dir", "arguments": '{\"path\":\".\"}'}},
+                {"id": "c3", "type": "function", "function": {
+                    "name": "read_file",
+                    "arguments": '{\"path\":\"_tooltest.txt\"}'}},
+            ]
+            self._json(200, {"choices": [{"message": {
+                "role": "assistant", "content": "", "tool_calls": tcs}}]})
+            return
+        if has_toolres:
+            toolres = [str(m.get("content", ""))[:50] for m in msgs
+                       if m.get("role") == "tool"]
+            content = f"[mock:{body.get('model','?')}] tool_results={toolres}"
+        else:
+            content = f"[mock:{body.get('model','?')}] persona={persona} last_user={last}"
         self._json(200, {"choices": [{"message": {"role": "assistant", "content": content}}]})
 
     def do_GET(self):

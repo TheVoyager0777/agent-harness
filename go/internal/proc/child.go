@@ -5,12 +5,12 @@ package proc
 // 资源全部 IPC 回主进程。
 
 import (
-	"github.com/xjcdw0777/agent-harness/internal/config"
-	"github.com/xjcdw0777/agent-harness/internal/core"
-		"github.com/xjcdw0777/agent-harness/internal/tools"
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/xjcdw0777/agent-harness/internal/config"
+	"github.com/xjcdw0777/agent-harness/internal/core"
+	"github.com/xjcdw0777/agent-harness/internal/tools"
 	"os"
 	"sync"
 	"time"
@@ -143,7 +143,6 @@ func AgentMain(name string) {
 		}
 		toolList := tools.Effective(agent)
 		out := ""
-		var msg config.Message
 		for round := 0; round < config.G.MaxToolRounds; round++ {
 			drainInbox(&msgs)
 			res, err := ipc.call("model.call",
@@ -152,6 +151,8 @@ func AgentMain(name string) {
 				out = "*(call failed: " + err.Error() + ")*"
 				break
 			}
+			// 必须整体重建: Unmarshal 不清空缺失的 tool_calls, 会残留上一轮
+			var msg config.Message
 			mj, _ := json.Marshal(res["message"])
 			json.Unmarshal(mj, &msg)
 			if len(msg.ToolCalls) == 0 {
@@ -159,17 +160,29 @@ func AgentMain(name string) {
 				break
 			}
 			msgs = append(msgs, msg)
-			for _, tc := range msg.ToolCalls {
-				tr, err := ipc.call("tool.call", map[string]any{
-					"name": tc.Function.Name, "args": tc.Function.Arguments}, 360)
-				content := ""
-				if err != nil {
-					content = "tool ipc error: " + err.Error()
-				} else {
-					content, _ = tr["result"].(string)
+			// 一轮全部 tool_calls 合并为单个 batch, 主进程按资源锁并行调度
+			calls := make([]map[string]any, len(msg.ToolCalls))
+			for i, tc := range msg.ToolCalls {
+				calls[i] = map[string]any{"id": tc.ID, "name": tc.Function.Name,
+					"args": tc.Function.Arguments}
+			}
+			tr, err := ipc.call("tool.batch", map[string]any{"calls": calls},
+				360*len(calls))
+			resByID := map[string]string{}
+			if err != nil {
+				for _, tc := range msg.ToolCalls {
+					resByID[tc.ID] = "tool ipc error: " + err.Error()
 				}
+			} else if rlist, ok := tr["results"].([]any); ok {
+				for _, r := range rlist {
+					rm, _ := r.(map[string]any)
+					rid, _ := rm["id"].(string)
+					resByID[rid], _ = rm["result"].(string)
+				}
+			}
+			for _, tc := range msg.ToolCalls {
 				msgs = append(msgs, config.Message{Role: "tool",
-					ToolCallID: tc.ID, Content: content})
+					ToolCallID: tc.ID, Content: resByID[tc.ID]})
 			}
 		}
 		// 自持 history: 记录本轮 user+assistant

@@ -5,14 +5,14 @@ package proc
 // 子进程持有私有 history/inbox/工具循环;模型/工具/总线全部 IPC 回主进程。
 
 import (
-	"github.com/xjcdw0777/agent-harness/internal/config"
-	"github.com/xjcdw0777/agent-harness/internal/core"
-	"github.com/xjcdw0777/agent-harness/internal/model"
-	"github.com/xjcdw0777/agent-harness/internal/index"
-	"github.com/xjcdw0777/agent-harness/internal/tools"
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/xjcdw0777/agent-harness/internal/config"
+	"github.com/xjcdw0777/agent-harness/internal/core"
+	"github.com/xjcdw0777/agent-harness/internal/index"
+	"github.com/xjcdw0777/agent-harness/internal/model"
+	"github.com/xjcdw0777/agent-harness/internal/tools"
 	"io"
 	"os"
 	"os/exec"
@@ -60,16 +60,16 @@ func Snapshot() map[string]bool {
 }
 
 type AgentProc struct {
-	Name    string
-	Agent   *config.Agent
-	Run     *core.Run
-	cmd     *exec.Cmd
-	stdin   *json.Encoder
-	wmu     sync.Mutex
-	pend    map[int]chan map[string]any
-	pendMu  sync.Mutex
-	seq     int
-	turnRes chan map[string]any
+	Name         string
+	Agent        *config.Agent
+	Run          *core.Run
+	cmd          *exec.Cmd
+	stdin        *json.Encoder
+	wmu          sync.Mutex
+	pend         map[int]chan map[string]any
+	pendMu       sync.Mutex
+	seq          int
+	turnRes      chan map[string]any
 	LastStreamed bool
 }
 
@@ -90,8 +90,8 @@ func Spawn(name string, run *core.Run) *AgentProc {
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Stderr = errLog
 	p := &AgentProc{Name: name, Agent: a, Run: run, cmd: cmd,
-		stdin: json.NewEncoder(stdin),
-		pend:  map[int]chan map[string]any{},
+		stdin:   json.NewEncoder(stdin),
+		pend:    map[int]chan map[string]any{},
 		turnRes: make(chan map[string]any, 1)}
 	if err := cmd.Start(); err != nil {
 		run.SM.Set(name, "error", "spawn: "+err.Error())
@@ -208,14 +208,23 @@ func (p *AgentProc) handleReq(m map[string]any) {
 		}
 		p.reply(id, true, map[string]any{"message": msg, "usage": usage}, "")
 	case "tool.call":
+		// 单调用=批量为1, 走同一执行器
 		tn, _ := params["name"].(string)
 		args, _ := params["args"].(string)
-		p.Run.SM.Set(p.Name, "tooling", tn)
-		fmt.Printf("\n    [%s] tool %s(%s)\n", p.Name, tn, core.Trunc(args, 70))
-		res := tools.Run(p.Agent, tn, args)
-		p.Run.Event(map[string]any{"kind": "tool", "agent": p.Name,
-			"tool": tn, "args": core.Trunc(args, 200)})
-		p.reply(id, true, map[string]any{"result": res}, "")
+		res := p.toolBatch([]tools.Call{{Name: tn, Args: args}})[0]
+		p.reply(id, true, map[string]any{"result": res.Content}, "")
+	case "tool.batch":
+		var calls []tools.Call
+		for _, r := range params["calls"].([]any) {
+			m, _ := r.(map[string]any)
+			c := tools.Call{}
+			c.ID, _ = m["id"].(string)
+			c.Name, _ = m["name"].(string)
+			c.Args, _ = m["args"].(string)
+			calls = append(calls, c)
+		}
+		res := p.toolBatch(calls)
+		p.reply(id, true, map[string]any{"results": res}, "")
 	case "bus.pub":
 		if !perm.Get("collab", true) {
 			fail("collab denied")
@@ -326,9 +335,18 @@ func StopAll(run *core.Run) {
 	}
 }
 
-
-
 func indexSummary() string {
 	defer func() { _ = recover() }()
 	return index.Summary()
+}
+
+// toolBatch: 解析→校验→锁协调执行, 逐调用记事件/状态。
+func (p *AgentProc) toolBatch(calls []tools.Call) []tools.Result {
+	p.Run.SM.Set(p.Name, "tooling", fmt.Sprintf("%d calls", len(calls)))
+	for _, c := range calls {
+		fmt.Printf("\n    [%s] tool %s(%s)\n", p.Name, c.Name, core.Trunc(c.Args, 70))
+		p.Run.Event(map[string]any{"kind": "tool", "agent": p.Name,
+			"tool": c.Name, "args": core.Trunc(c.Args, 200)})
+	}
+	return tools.Ex.ExecBatch(p.Agent, calls)
 }
