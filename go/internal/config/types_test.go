@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"os"
@@ -16,7 +16,7 @@ developer: 记得先读代码
 ---
 正文 persona 内容。
 第二行。`
-	meta, body := parseFrontmatter(md)
+	meta, body := ParseFrontmatter(md)
 	if meta["name"] != "tester" || meta["model"] != "glm-5.3" {
 		t.Fatalf("meta=%v", meta)
 	}
@@ -32,7 +32,7 @@ func TestApplyMetaMerges(t *testing.T) {
 	a := &Agent{Name: "x", Persona: "旧persona"}
 	meta := map[string]any{"model": "m1", "endpoint": "olo",
 		"tools": []string{"read_file"}, "temp": 0.5}
-	applyMeta(a, meta)
+	ApplyMeta(a, meta)
 	if a.Model != "m1" || a.Endpoint != "olo" || a.Temp != 0.5 {
 		t.Fatalf("a=%+v", a)
 	}
@@ -57,7 +57,7 @@ func TestLoadConfigMDMerge(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "agents", "b2.md"),
 		[]byte("---\nname: b2\nmodel: m3\n---\n仅md agent"), 0o644)
 
-	loadConfig(dir)
+	LoadConfig(dir)
 	a := Agents["a1"]
 	if a == nil || a.Model != "m2" || a.Persona != "md-persona" {
 		t.Fatalf("md 应覆盖 json: %+v", a)
@@ -76,4 +76,13 @@ func TestRoleMapFallback(t *testing.T) {
 	if G.RoleMap["developer"] != "system" {
 		t.Fatal("role_map 未生效")
 	}
+}
+
+func indexStr(s, sub string) int {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
 }

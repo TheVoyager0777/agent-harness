@@ -20,5 +20,13 @@
   },
   "stream": true,
   "turn_timeout_s": 1800,
-  "serve_port": 8390
+  "serve_port": 8390,
+  "context": {
+    "max_est": 60000,
+    "keep_recent": 10,
+    "chunk_est": 24000
+  },
+  "index_paths": [
+    "D:\\Mint-Simulator-Dev"
+  ]
 }

@@ -11,3 +11,5 @@ __pycache__/
 # 构建
 go/harness.exe
 go/harness
+archive/
+go/harness.exe

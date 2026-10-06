@@ -1,4 +1,4 @@
-package main
+package model
 
 import (
 	"strings"
@@ -17,7 +17,7 @@ data: {"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":
 data: [DONE]
 
 `
-	msg, usage := parseSSE(strings.NewReader(sse), nil)
+	msg, usage := ParseSSE(strings.NewReader(sse), nil)
 	if msg.Content != "Hello world" {
 		t.Fatalf("content=%q", msg.Content)
 	}
@@ -37,7 +37,7 @@ data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}
 
 data: [DONE]
 `
-	msg, _ := parseSSE(strings.NewReader(sse), nil)
+	msg, _ := ParseSSE(strings.NewReader(sse), nil)
 	if len(msg.ToolCalls) != 1 {
 		t.Fatalf("toolcalls=%d", len(msg.ToolCalls))
 	}
@@ -58,7 +58,7 @@ data: {"choices":[{"delta":{"content":"答"}}]}
 data: [DONE]
 `
 	var kinds []string
-	msg, _ := parseSSE(strings.NewReader(sse),
+	msg, _ := ParseSSE(strings.NewReader(sse),
 		func(text, kind string) { kinds = append(kinds, kind+":"+text) })
 	if len(kinds) != 2 || kinds[0] != "reasoning:思考中" || kinds[1] != "content:答" {
 		t.Fatalf("kinds=%v", kinds)
@@ -70,16 +70,16 @@ data: [DONE]
 
 func TestHttpErrRetryable(t *testing.T) {
 	// 429/5xx 可重试, 4xx 不重试 — 若 endpoint.go 里有该判定就测它
-	if !(httpErr{code: 429}).retryable() {
+	if !(HTTPErr{code: 429}).retryable() {
 		t.Error("429 应重试")
 	}
-	if !(httpErr{code: 502}).retryable() {
+	if !(HTTPErr{code: 502}).retryable() {
 		t.Error("502 应重试")
 	}
-	if (httpErr{code: 400}).retryable() {
+	if (HTTPErr{code: 400}).retryable() {
 		t.Error("400 不应重试")
 	}
-	if (httpErr{code: 401}).retryable() {
+	if (HTTPErr{code: 401}).retryable() {
 		t.Error("401 不应重试")
 	}
 }

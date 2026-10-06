@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"os"
@@ -25,8 +25,8 @@ func TestFnmatch(t *testing.T) {
 		{"*", "anything.at.all", true},
 	}
 	for _, c := range cases {
-		if got := fnmatch(c.pat, c.s); got != c.want {
-			t.Errorf("fnmatch(%q,%q)=%v want %v", c.pat, c.s, got, c.want)
+		if got := Fnmatch(c.pat, c.s); got != c.want {
+			t.Errorf("Fnmatch(%q,%q)=%v want %v", c.pat, c.s, got, c.want)
 		}
 	}
 }

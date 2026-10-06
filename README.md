@@ -19,6 +19,43 @@ agent = `harness.py _agent NAME` 衍生子进程
     context.get / state.set    ← 资源全在主进程,子进程只是"大脑"
 ```
 
+## 架构 (Go)
+
+```
+cmd/harness        CLI 入口(薄)
+internal/
+  config/          配置·类型·权限·角色
+  model/           端点·SSE 流式·重试·session·usage
+  core/            Run·事件总线·状态机·共享上下文·transcript
+  proc/            agent 子进程生命周期 + JSONL IPC 资源代理
+  tools/           沙箱工具·权限裁决·插件·ctx/index 工具
+  ctx/             上下文治理: append-only archive·pins 保全·
+                   滚动摘要·指纹缓存·0阻塞压缩·recall
+  index/           代码库索引·分块·BM25 式检索
+  modes/           ask/chat/brainstorm/council/task
+  serve/           常驻 daemon·job 队列·agent 进程池·控制口
+  xfer/            导出/导入
+```
+
+依赖单向: config ← core ← {model,tools,ctx,index} ← proc ← modes ← serve ← cmd。
+跨层回调用钩子注入(BusDeliver/AgentInject/StartControl/OnSpawned)。
+
+### 上下文治理 (借鉴 ctxsvc)
+
+- **archive**: 每 agent append-only 消息档案 (`context/archive/<name>.jsonl`)
+- **pins**: `<system-reminder>`/`<memory>` 块剥出·指纹去重·永不压缩
+- **0阻塞压缩**: turn 开始 Apply() 立即返回; 超 MaxEst 时后台起压缩,
+  完成后下一 turn 换入 `<summary>` 消息; 失败降级仅截断不丢 pin
+- **滚动摘要**: user 边界切块·ChunkEst 上限·上一块摘要 seed 续写·输入指纹缓存
+- **recall**: `ctx_search` 工具按词频检索 archive
+
+### 代码索引 (codebase memory 风格)
+
+`index_paths` 配置的根下自动索引 go/py/js/ts/md 等 17 种文本文件,
+跳过 .git/runs/构建产物; 函数级分块 + 文件指纹增量重建。
+agent 工具 `code_search`/`file_overview`; `context.get` 自动附带索引概览。
+CLI: `harness index [refresh]`。
+
 ## 用法
 
 ```bash

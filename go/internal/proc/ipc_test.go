@@ -1,4 +1,4 @@
-package main
+package proc
 
 import (
 	"encoding/json"
