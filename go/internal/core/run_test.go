@@ -15,7 +15,10 @@ func busReset() {
 }
 
 func TestFnmatch(t *testing.T) {
-	cases := []struct{ pat, s string; want bool }{
+	cases := []struct {
+		pat, s string
+		want   bool
+	}{
 		{"artifact.written", "artifact.written", true},
 		{"artifact.*", "artifact.written", true},
 		{"*.written", "artifact.written", true},
@@ -78,7 +81,7 @@ func TestStateMachine(t *testing.T) {
 func TestSayTranscript(t *testing.T) {
 	dir := t.TempDir()
 	run := &Run{Dir: dir, Mode: "test",
-		Usage: map[string]int{},
+		Usage:   map[string]int{},
 		transcr: []string{"# test"}}
 	run.SM = NewStateMachine(run)
 	run.Say("alice", "hello world", []string{"f.go"})

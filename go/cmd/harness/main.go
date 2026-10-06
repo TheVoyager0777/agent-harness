@@ -18,18 +18,18 @@ package main
 // 全局: --home DIR --endpoint E --no-tools --no-procs --reminder s
 
 import (
-		"github.com/xjcdw0777/agent-harness/internal/config"
-	"github.com/xjcdw0777/agent-harness/internal/index"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"github.com/xjcdw0777/agent-harness/internal/config"
 	"github.com/xjcdw0777/agent-harness/internal/core"
+	"github.com/xjcdw0777/agent-harness/internal/index"
 	"github.com/xjcdw0777/agent-harness/internal/model"
 	"github.com/xjcdw0777/agent-harness/internal/modes"
 	"github.com/xjcdw0777/agent-harness/internal/proc"
 	"github.com/xjcdw0777/agent-harness/internal/serve"
 	"github.com/xjcdw0777/agent-harness/internal/tools"
 	"github.com/xjcdw0777/agent-harness/internal/xfer"
-	"encoding/json"
-	"flag"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -205,7 +205,6 @@ func jstr(v any) string {
 }
 
 // ---------- daemon 客户端 ----------
-
 
 func submit(pos []string, rest []string) {
 	mode, topic := pos[0], ""

@@ -8,12 +8,12 @@ package serve
 //   harness serve-stop       停 daemon
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/xjcdw0777/agent-harness/internal/config"
 	"github.com/xjcdw0777/agent-harness/internal/core"
 	"github.com/xjcdw0777/agent-harness/internal/modes"
 	"github.com/xjcdw0777/agent-harness/internal/proc"
-	"encoding/json"
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -23,9 +23,9 @@ import (
 )
 
 type daemon struct {
-	mu     sync.Mutex
-	jobs   []jobInfo
-	procs  map[string]*proc.AgentProc // daemon 级保活池
+	mu    sync.Mutex
+	jobs  []jobInfo
+	procs map[string]*proc.AgentProc // daemon 级保活池
 }
 
 type jobInfo struct {

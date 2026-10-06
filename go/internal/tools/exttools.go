@@ -81,4 +81,3 @@ func tCodeIndex(a *config.Agent, args map[string]any) (string, error) {
 	}
 	return index.Summary(), nil
 }
-

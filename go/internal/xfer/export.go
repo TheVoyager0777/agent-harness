@@ -1,9 +1,9 @@
 package xfer
 
 import (
-	"github.com/xjcdw0777/agent-harness/internal/config"
 	"archive/zip"
 	"fmt"
+	"github.com/xjcdw0777/agent-harness/internal/config"
 	"io"
 	"os"
 	"path/filepath"

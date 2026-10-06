@@ -4,12 +4,12 @@ package modes
 // agent 自持 history: 主进程只传新信息(他人发言拼进 prompt),不重建历史。
 
 import (
+	"bufio"
+	"encoding/json"
+	"fmt"
 	"github.com/xjcdw0777/agent-harness/internal/config"
 	"github.com/xjcdw0777/agent-harness/internal/core"
 	"github.com/xjcdw0777/agent-harness/internal/proc"
-		"bufio"
-	"encoding/json"
-	"fmt"
 	"os"
 	"regexp"
 	"strings"

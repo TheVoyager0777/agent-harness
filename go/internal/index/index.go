@@ -10,12 +10,12 @@ package index
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
-	"fmt"
 	"sync"
 	"time"
 
@@ -70,12 +70,12 @@ var skipDirs = map[string]bool{
 
 // 符号边界正则(按语言切 chunk)
 var symRes = map[string]*regexp.Regexp{
-	"go":     regexp.MustCompile(`^(func |type \w+ |var \w+ |const )`),
-	"python": regexp.MustCompile(`^(def |class |async def )`),
-	"js":     regexp.MustCompile(`^(export |function |class |const \w+ *=|async function )`),
-	"ts":     regexp.MustCompile(`^(export |function |class |const \w+ *=|interface |type |async function )`),
-	"rust":   regexp.MustCompile(`^(fn |struct |impl |trait |pub fn |enum )`),
-	"java":   regexp.MustCompile(`^\s*(public |private |protected |class |interface )`),
+	"go":       regexp.MustCompile(`^(func |type \w+ |var \w+ |const )`),
+	"python":   regexp.MustCompile(`^(def |class |async def )`),
+	"js":       regexp.MustCompile(`^(export |function |class |const \w+ *=|async function )`),
+	"ts":       regexp.MustCompile(`^(export |function |class |const \w+ *=|interface |type |async function )`),
+	"rust":     regexp.MustCompile(`^(fn |struct |impl |trait |pub fn |enum )`),
+	"java":     regexp.MustCompile(`^\s*(public |private |protected |class |interface )`),
 	"markdown": regexp.MustCompile(`^#{1,3} `),
 }
 

@@ -23,10 +23,10 @@ import (
 type SummFn func(msgs []config.Message) (string, error)
 
 type CompactConf struct {
-	MaxEst      int64 `json:"max_est"`       // 触发阈值, 0=不压缩
-	KeepRecent  int   `json:"keep_recent"`   // 尾部保留原文消息数
-	ChunkEst    int64 `json:"chunk_est"`     // 单块输入上限
-	SummarySeed bool  `json:"summary_seed"`  // 旧摘要续压
+	MaxEst      int64 `json:"max_est"`      // 触发阈值, 0=不压缩
+	KeepRecent  int   `json:"keep_recent"`  // 尾部保留原文消息数
+	ChunkEst    int64 `json:"chunk_est"`    // 单块输入上限
+	SummarySeed bool  `json:"summary_seed"` // 旧摘要续压
 }
 
 var Conf = CompactConf{MaxEst: 60000, KeepRecent: 10, ChunkEst: 24000,
@@ -67,12 +67,12 @@ resume work using only your summary plus the archived history.
 Now summarize the conversation above. Provide only the <summary> tags output.`
 
 type Compactor struct {
-	Agent   *config.Agent
-	Call    SummFn
-	mu      sync.Mutex
-	running bool
-	pending []config.Message // 完成待换入: [summaryMsg]+pins
-	seed    string           // 旧摘要(增量续压)
+	Agent    *config.Agent
+	Call     SummFn
+	mu       sync.Mutex
+	running  bool
+	pending  []config.Message // 完成待换入: [summaryMsg]+pins
+	seed     string           // 旧摘要(增量续压)
 	sumCache map[string]string
 }
 

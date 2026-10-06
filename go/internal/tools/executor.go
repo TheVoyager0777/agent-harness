@@ -265,8 +265,9 @@ func (e *Executor) Holds() map[string]string {
 }
 
 // waitHolds: 调用前检查。返回 (ok, self):
-//   ok=false   等待超时, 调用应失败
-//   self=true  本 agent 持有该键(或全局)*——跳过槽锁直接执行, 否则自死锁
+//
+//	ok=false   等待超时, 调用应失败
+//	self=true  本 agent 持有该键(或全局)*——跳过槽锁直接执行, 否则自死锁
 func (e *Executor) waitHolds(owner, key string, timeout time.Duration) (bool, bool) {
 	deadline := time.Now().Add(timeout)
 	for {
