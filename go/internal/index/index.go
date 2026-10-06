@@ -322,6 +322,22 @@ func Summary() string {
 	return summaryLocked()
 }
 
+var nbOnce sync.Once
+
+// SummaryNB: 非阻塞概览 — 未建则后台触发构建并返回提示, 不阻塞调用方。
+func SummaryNB() string {
+	idxMu.RLock()
+	i := idx
+	idxMu.RUnlock()
+	if i == nil {
+		nbOnce.Do(func() { go Ensure() })
+		return ""
+	}
+	idxMu.RLock()
+	defer idxMu.RUnlock()
+	return summaryLocked()
+}
+
 func summaryLocked() string {
 	if idx == nil {
 		return "index: not built"

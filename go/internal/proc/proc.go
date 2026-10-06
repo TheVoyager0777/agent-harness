@@ -43,6 +43,11 @@ func init() {
 		p.Inject(text)
 		return nil
 	}
+	// 非阻塞索引概览(未建则后台构建)
+	core.IndexOverview = func() string {
+		defer func() { _ = recover() }()
+		return index.SummaryNB()
+	}
 }
 
 // Alive: 子进程仍在运行。
