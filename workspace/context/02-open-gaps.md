@@ -1,7 +1,10 @@
 # 未决问题(按怀疑度排序)
 
-## 1. f16 为何只有真值 60%
-f16 = base64url 解出的 opaque blob,是 BotGuard VM 产出的环境证明。真实会话 3719→4446B 随时间增长;我们恒定 ~2500B。已排除: worker 闲置(ch5 port 双向通信在跑)、合成事件计数(加行为流不长)、cookie(带真 _GRECAPTCHA 不长)、会话龄(45s×6 execute 不长)。**假设: BotGuard 的某些 collector 在 jsdom 里静默失败/产出空**——需要找引擎里 collector 的注册点,单测每个 collector 在我们的 env 里产出什么。
+## 1. f16 体积缺口(已实测,数字更新)
+f16 = base64url 解出的 opaque blob,是 BotGuard VM 产出的环境证明。**实测(2026-10-06, decode-reload-f16.mjs)**: 我们 reload-body.bin 的 f16 = **2541B**;真浏览器 recap-real/ 851 样本 = min 3719 / p50 4359 / max 4986B(早期小、稳态 4330-4410B)。缺口 ~42%,缺失的是**可累积**的 collector 输出(稳态后才填满),不是固定字段。
+已排除: worker 闲置、合成事件计数、cookie、会话龄。**引擎是 VM 混淆代码,collector 无明文注册点**——静态 grep 无效,必须用运行时插桩。
+**关键发现(critic 审出)**: BotGuard 跑在 Worker 里(live-v3-single.mjs:469 makeWorker),现有 V3_PROBE(666-689)只套了 anchor 侧 5 个对象,Worker 的 self/navigator/performance/crypto 完全无探针;probe.json 里 performance.impl×18 是 jsdom Symbol(impl) 泄漏,不是 BotGuard 读取。
+产物: minter/tools/decode-reload-f16.mjs(单文件解码), batch-decode-real-f16.mjs(批量+分布+曲线), f16-summary.mjs; dump/real-f16-stats.json + real-f16-time-series.csv。
 
 ## 2. 判分主体到底是不是 f16
 siteverify 判分的输入可能是 f16 的 verdict 字段而非大小。备选: 也许 403 根本不是因为 f16 而是 token 内的其他 score 分量。判别实验缺位——**需要一个能读 score 的 oracle**。思路: 找个有 siteverify 后台可见分数的 sitekey,或者 Google Admin Console 看分数;或者对比 minted token 在我们能控制的低阈值端点上的逐步失败曲线,反推各分量权重。

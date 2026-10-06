@@ -42,6 +42,7 @@
       "read_file",
       "grep",
       "run_cmd",
+      "write_file",
       "code_search",
       "code_index",
       "ctx_search",
@@ -56,7 +57,7 @@
     ],
     "permissions": {
       "read": true,
-      "write": false,
+      "write": true,
       "exec": true,
       "collab": true
     }

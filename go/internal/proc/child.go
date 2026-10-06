@@ -63,6 +63,7 @@ func AgentMain(name string) {
 		pend: map[float64]chan map[string]any{}}
 	inbox := make(chan map[string]any, 64)
 	cmds := make(chan map[string]any, 8)
+	done := make(chan struct{})
 	history := []config.Message{}
 	ctx.SyncConf()
 	comp := ctx.NewCompactor(agent, func(msgs []config.Message) (string, error) {
@@ -95,13 +96,23 @@ func AgentMain(name string) {
 				}
 				ipc.pmu.Unlock()
 			case "push":
-				inbox <- m
+				select {
+				case inbox <- m:
+				case <-done:
+					return
+				}
 			case "cmd":
-				cmds <- m
+				select {
+				case cmds <- m:
+				case <-done:
+					return
+				}
 			}
 		}
 		close(cmds)
 	}()
+
+	defer close(done)
 
 	drainInbox := func(msgs *[]config.Message) {
 		for {
@@ -183,6 +194,19 @@ func AgentMain(name string) {
 			for _, tc := range msg.ToolCalls {
 				msgs = append(msgs, config.Message{Role: "tool",
 					ToolCallID: tc.ID, Content: resByID[tc.ID]})
+			}
+		}
+		// 轮次耗尽/空应答: 强制收尾轮(不带工具)让模型基于已获得信息给结论
+		if out == "" {
+			msgs = append(msgs, config.Message{Role: "developer",
+				Content: "工具轮次已用完。请基于已获得的信息直接给出结论/成果,不要再发起工具调用。"})
+			res, err := ipc.call("model.call",
+				map[string]any{"messages": msgs}, config.G.TimeoutS+120)
+			if err == nil {
+				var msg config.Message
+				mj, _ := json.Marshal(res["message"])
+				json.Unmarshal(mj, &msg)
+				out = msg.Content
 			}
 		}
 		// 自持 history: 记录本轮 user+assistant

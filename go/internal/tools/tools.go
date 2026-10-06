@@ -250,15 +250,30 @@ func tGrep(a *config.Agent, args map[string]any) (string, error) {
 	return strings.Join(hits, "\n"), nil
 }
 
+// shellCmd: 构造"按用户字面语义"执行命令的 *exec.Cmd。
+// Windows 上 cmd /c 经 Go EscapeArg 会把内层 " 转成 \"(cmd 不认该转义),
+// 故走临时 .bat 文件绕开命令行引号层;cleanup 负责删除临时文件。
+func shellCmd(cs string) (*exec.Cmd, func()) {
+	if isUnix() {
+		return exec.Command("sh", "-c", cs), func() {}
+	}
+	if f, err := os.CreateTemp("", "hc-*.bat"); err == nil {
+		bat := f.Name()
+		f.WriteString("@echo off\r\n" + cs + "\r\n")
+		f.Close()
+		return exec.Command("cmd", "/d", "/c", bat), func() { os.Remove(bat) }
+	}
+	return exec.Command("cmd", "/c", cs), func() {}
+}
+
 func tRunCmd(a *config.Agent, args map[string]any) (string, error) {
 	to := argI(args, "timeout", 60)
 	if to > 300 {
 		to = 300
 	}
-	cmd := exec.Command("cmd", "/c", argS(args, "cmd"))
-	if isUnix() {
-		cmd = exec.Command("sh", "-c", argS(args, "cmd"))
-	}
+	cs := argS(args, "cmd")
+	cmd, cleanup := shellCmd(cs)
+	defer cleanup()
 	cmd.Dir = config.Root
 	done := make(chan struct{})
 	var outb, errb strings.Builder
@@ -374,10 +389,8 @@ func LoadPlugins(root string) {
 		Registry[name] = &ToolDef{
 			Fn: func(a *config.Agent, args map[string]any) (string, error) {
 				b, _ := json.Marshal(args)
-				c := exec.Command("cmd", "/c", cmdStr)
-				if isUnix() {
-					c = exec.Command("sh", "-c", cmdStr)
-				}
+				c, cleanup := shellCmd(cmdStr)
+				defer cleanup()
 				c.Dir = config.Root
 				c.Stdin = strings.NewReader(string(b))
 				var out strings.Builder

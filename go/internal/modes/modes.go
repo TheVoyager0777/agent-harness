@@ -231,6 +231,54 @@ func Council(question string, roster []string) {
 
 var jsonArrRe = regexp.MustCompile(`(?s)\[.*\]`)
 
+type taskStep struct {
+	ID, Owner, Title string
+	DependsOn        []string `json:"depends_on"`
+}
+
+// pruneCycles: DFS 检测并剪掉会造成环的依赖边(按 plan 顺序的稳定裁剪)。
+func pruneCycles(plan []taskStep) {
+	byID := map[string]*taskStep{}
+	for i := range plan {
+		byID[plan[i].ID] = &plan[i]
+	}
+	// reach(k, t): 从 k 沿依赖能否走到 t
+	var reach func(k, t string, seen map[string]bool) bool
+	reach = func(k, t string, seen map[string]bool) bool {
+		if k == t {
+			return true
+		}
+		if seen[k] {
+			return false
+		}
+		seen[k] = true
+		st := byID[k]
+		if st == nil {
+			return false
+		}
+		for _, d := range st.DependsOn {
+			if reach(d, t, seen) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, st := range plan {
+		var keep []string
+		for _, d := range st.DependsOn {
+			if d == st.ID {
+				continue
+			}
+			// 若 st 已(间接)是 d 的前驱, 这条边成环, 剪掉
+			if reach(st.ID, d, map[string]bool{}) {
+				continue
+			}
+			keep = append(keep, d)
+		}
+		st.DependsOn = keep
+	}
+}
+
 func Task(desc string, roster []string) {
 	run := core.NewRun("task", desc)
 	StartControl(run)
@@ -254,48 +302,61 @@ func Task(desc string, roster []string) {
 		fmt.Sprintf("把任务拆成可执行子任务,每项指定负责人(从 %v 选)。只输出 JSON: [{id,owner,title,depends_on}]。任务: %s",
 			names, desc), "", "")
 	run.Say("orchestrator(plan)", planRaw, nil)
-	type step struct {
-		ID, Owner, Title string
-		DependsOn        []string `json:"depends_on"`
-	}
-	var plan []step
+	var plan []taskStep
 	raw := jsonArrRe.FindString(planRaw)
 	if raw != "" {
-		var sj []struct {
-			ID        string   `json:"id"`
-			Owner     string   `json:"owner"`
-			Title     string   `json:"title"`
-			DependsOn []string `json:"depends_on"`
-		}
+		var sj []taskStep
 		if json.Unmarshal([]byte(raw), &sj) == nil {
-			for _, x := range sj {
-				plan = append(plan, step{x.ID, x.Owner, x.Title, x.DependsOn})
-			}
+			plan = sj
 		}
 	}
 	if len(plan) == 0 {
-		plan = []step{{"t1", names[0], desc, nil}}
+		plan = []taskStep{{ID: "t1", Owner: names[0], Title: desc}}
 	}
+	// DAG 并行调度: 每任务等 depends_on 完成后开工, 独立任务并发执行。
+	// 非法依赖(未知/自环)直接跳过; 环依赖按 DFS 剪边防死锁。
+	pruneCycles(plan)
 	done := map[string]string{}
+	var dm sync.Mutex
+	doneCh := map[string]chan struct{}{}
 	for _, st := range plan {
-		owner := st.Owner
-		if config.Agents[owner] == nil {
-			owner = names[0]
-		}
-		var dep []string
-		for _, k := range st.DependsOn {
-			if d, ok := done[k]; ok {
+		doneCh[st.ID] = make(chan struct{})
+	}
+	var wg sync.WaitGroup
+	for _, st := range plan {
+		st := st
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var dep []string
+			for _, k := range st.DependsOn {
+				if k == st.ID || doneCh[k] == nil {
+					continue
+				}
+				<-doneCh[k]
+				dm.Lock()
+				d := done[k]
+				dm.Unlock()
 				dep = append(dep, fmt.Sprintf("[%s] %s", k, core.Trunc(d, 1500)))
 			}
-		}
-		prompt := "子任务: " + st.Title + "\n"
-		if len(dep) > 0 {
-			prompt += "前序产出:\n" + strings.Join(dep, "\n") + "\n"
-		}
-		prompt += "完成它。产出用 ```file:path 代码块或 write_file 工具写文件。"
-		done[st.ID] = turnOf(run, owner, prompt, "", "")
-		core.BusPub(owner, "task.done", map[string]any{"id": st.ID})
+			owner := st.Owner
+			if config.Agents[owner] == nil {
+				owner = names[0]
+			}
+			prompt := "子任务: " + st.Title + "\n"
+			if len(dep) > 0 {
+				prompt += "前序产出:\n" + strings.Join(dep, "\n") + "\n"
+			}
+			prompt += "完成它。产出用 ```file:path 代码块或 write_file 工具写文件。"
+			out := turnOf(run, owner, prompt, "", "")
+			dm.Lock()
+			done[st.ID] = out
+			dm.Unlock()
+			close(doneCh[st.ID])
+			core.BusPub(owner, "task.done", map[string]any{"id": st.ID})
+		}()
 	}
+	wg.Wait()
 	if config.Agents["critic"] != nil {
 		var sb strings.Builder
 		for k, v := range done {
